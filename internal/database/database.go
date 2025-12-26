@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/internal/auth"
+
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -16,14 +18,20 @@ func NewClient(pathToDB string) (Client, error) {
 	if err != nil {
 		return Client{}, err
 	}
+
+	_, err = db.Exec("PRAGMA foreign_keys = ON")
+	if err != nil {
+		return Client{}, err
+	}
+
 	c := Client{db}
 	err = c.autoMigrate()
 	if err != nil {
 		return Client{}, err
 	}
 	return c, nil
-
 }
+
 
 func (c *Client) autoMigrate() error {
 	userTable := `
@@ -63,7 +71,7 @@ func (c *Client) autoMigrate() error {
 		title TEXT NOT NULL,
 		description TEXT,
 		thumbnail_url TEXT,
-		video_url TEXT TEXT,
+		video_url TEXT,
 		user_id INTEGER,
 		FOREIGN KEY(user_id) REFERENCES users(id)
 	);
@@ -79,11 +87,25 @@ func (c Client) Reset() error {
 	if _, err := c.db.Exec("DELETE FROM refresh_tokens"); err != nil {
 		return fmt.Errorf("failed to reset table refresh_tokens: %w", err)
 	}
-	if _, err := c.db.Exec("DELETE FROM users"); err != nil {
-		return fmt.Errorf("failed to reset table users: %w", err)
-	}
 	if _, err := c.db.Exec("DELETE FROM videos"); err != nil {
 		return fmt.Errorf("failed to reset table videos: %w", err)
 	}
+	if _, err := c.db.Exec("DELETE FROM users"); err != nil {
+		return fmt.Errorf("failed to reset table users: %w", err)
+	}
+
+	hashedPassword, err := auth.HashPassword("password")
+	if err != nil {
+		return err
+	}
+
+	_, err = c.CreateUser(CreateUserParams{
+		Email:    "admin@tubely.com",
+		Password: hashedPassword,
+	})
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
